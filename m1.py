@@ -10,7 +10,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
-SUPABASE_CONN_STR = os.getenv("postgresql://postgres.pawoxtsikeepvgiemush:7hyuKbHqNRsxadPt@aws-1-us-east-2.pooler.supabase.com:5432/postgres")
+SUPABASE_CONN_STR = "postgresql://postgres.pawoxtsikeepvgiemush:7hyuKbHqNRsxadPt@aws-1-us-east-2.pooler.supabase.com:5432/postgres"
 
 MODEL_VERSION = "weather_temp_v1"
 DATA_START = "2026-03-01 00:00:00+00"
