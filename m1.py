@@ -11,9 +11,9 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 SUPABASE_CONN_STR = "postgresql://postgres.pawoxtsikeepvgiemush:7hyuKbHqNRsxadPt@aws-1-us-east-2.pooler.supabase.com:5432/postgres"
 
-MODEL_VERSION = "weather_temp_v0"
+MODEL_VERSION = "weather_temp_v2"
 DATA_START = "2026-03-01 00:00:00+00"
-DATA_END_EXCLUSIVE = "2026-03-02 00:00:00+00"
+DATA_END_EXCLUSIVE = "2026-03-04 00:00:00+00"
 
 MODEL_DIR = Path("./models")
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
