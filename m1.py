@@ -11,16 +11,32 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 SUPABASE_CONN_STR = "postgresql://postgres.pawoxtsikeepvgiemush:7hyuKbHqNRsxadPt@aws-1-us-east-2.pooler.supabase.com:5432/postgres"
 
-MODEL_VERSION = "weather_temp_v1"
-DATA_START = "2026-03-01 00:00:00+00"
-DATA_END_EXCLUSIVE = "2026-03-04 00:00:00+00"
-
 MODEL_DIR = Path("./models")
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
-MODEL_PATH = MODEL_DIR / f"{MODEL_VERSION}.pkl"
+
+MODEL_CONFIGS = [
+	{
+		"model_version": "weather_temp_auto_20260402_115700",
+		"data_start": "2026-03-01 00:00:00+00",
+		"data_end_exclusive": "2026-03-03 00:00:00+00",
+		"label": "2 dias"
+	},
+	{
+		"model_version": "weather_temp_auto_20260402_115800",
+		"data_start": "2026-03-01 00:00:00+00",
+		"data_end_exclusive": "2026-03-04 00:00:00+00",
+		"label": "3 dias"
+	},
+	{
+		"model_version": "weather_temp_auto_20260402_115900",
+		"data_start": "2026-03-01 00:00:00+00",
+		"data_end_exclusive": "2026-03-05 00:00:00+00",
+		"label": "4 dias"
+	},
+]
 
 
-def load_data():
+def load_data(data_start, data_end_exclusive):
 	query = """
 		select
 			observation_time,
@@ -36,14 +52,14 @@ def load_data():
 
 	with psycopg.connect(SUPABASE_CONN_STR) as conn:
 		with conn.cursor() as cur:
-			cur.execute(query, (DATA_START, DATA_END_EXCLUSIVE))
+			cur.execute(query, (data_start, data_end_exclusive))
 			rows = cur.fetchall()
 			cols = [desc.name for desc in cur.description]
 
 	df = pd.DataFrame(rows, columns=cols)
 
 	if df.empty:
-		raise ValueError("No hay datos en ese rango para entrenar el modelo.")
+		raise ValueError(f"No hay datos en el rango {data_start} a {data_end_exclusive}")
 
 	return df
 
@@ -78,7 +94,7 @@ def build_supervised_dataset(df):
 	data = data.dropna(subset=feature_cols + ["target_temperature_next_hour"]).reset_index(drop=True)
 
 	if len(data) < 12:
-		raise ValueError(f"Muy pocas filas útiles para entrenar: {len(data)}")
+		raise ValueError(f"Muy pocas filas utiles para entrenar: {len(data)}")
 
 	return data, feature_cols
 
@@ -96,7 +112,7 @@ def split_train_test(data, train_ratio=0.8):
 	test_df = data.iloc[split_idx:].copy()
 
 	if train_df.empty or test_df.empty:
-		raise ValueError("No se pudo crear un split válido de train/test.")
+		raise ValueError("No se pudo crear un split valido de train/test.")
 
 	return train_df, test_df
 
@@ -125,15 +141,14 @@ def train_and_evaluate(train_df, test_df, feature_cols):
 	return model, mae, rmse, r2, len(X_train), len(X_test), len(train_df) + len(test_df)
 
 
-def save_model(model):
-	joblib.dump(model, MODEL_PATH)
+def save_model(model, model_version):
+	model_path = MODEL_DIR / f"{model_version}.pkl"
+	joblib.dump(model, model_path)
+	return model_path
 
 
-def main():
-	if not SUPABASE_CONN_STR or "PEGA_AQUI" in SUPABASE_CONN_STR:
-		raise ValueError("Debes pegar una connection string válida de Supabase en SUPABASE_CONN_STR.")
-
-	raw_df = load_data()
+def run_training(config):
+	raw_df = load_data(config["data_start"], config["data_end_exclusive"])
 	data, feature_cols = build_supervised_dataset(raw_df)
 	train_df, test_df = split_train_test(data, train_ratio=0.8)
 
@@ -143,17 +158,42 @@ def main():
 		feature_cols
 	)
 
-	save_model(model)
+	save_model(model, config["model_version"])
 
-	print(f"Modelo entrenado: {MODEL_VERSION}")
-	print(f"Filas crudas leídas: {len(raw_df)}")
-	print(f"Filas útiles supervisadas: {total_rows}")
-	print(f"Filas train: {train_rows}")
-	print(f"Filas test: {test_rows}")
-	print(f"MAE: {mae:.4f}")
-	print(f"RMSE: {rmse:.4f}")
-	print(f"R2: {r2:.4f}")
-	print(f"Modelo guardado en: {MODEL_PATH}")
+	return {
+		"label": config["label"],
+		"model_version": config["model_version"],
+		"raw_rows": len(raw_df),
+		"total_rows": total_rows,
+		"train_rows": train_rows,
+		"test_rows": test_rows,
+		"mae": mae,
+		"rmse": rmse,
+		"r2": r2,
+	}
+
+
+def main():
+	if not SUPABASE_CONN_STR or "PEGA_AQUI" in SUPABASE_CONN_STR:
+		raise ValueError("Debes pegar una connection string valida en SUPABASE_CONN_STR.")
+
+	results = []
+
+	for config in MODEL_CONFIGS:
+		result = run_training(config)
+		results.append(result)
+
+	for result in results:
+		print("=" * 50)
+		print(f"Ventana: {result['label']}")
+		print(f"Modelo: {result['model_version']}")
+		print(f"Filas crudas: {result['raw_rows']}")
+		print(f"Filas utiles: {result['total_rows']}")
+		print(f"Train: {result['train_rows']}")
+		print(f"Test: {result['test_rows']}")
+		print(f"MAE: {result['mae']:.4f}")
+		print(f"RMSE: {result['rmse']:.4f}")
+		print(f"R2: {result['r2']:.4f}")
 
 
 if __name__ == "__main__":
